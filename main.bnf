@@ -1,0 +1,35 @@
+<restaurant_operation> ::= <task_list>
+
+<task_list> ::= <task> | <task> ";" <task_list>
+
+<task> ::= <take_order> | <prepare_order> | <serve_order> | <handle_payment>
+
+<take_order> ::= "take_order" "(" <customer_name> "," <order_items> ")"
+
+<prepare_order> ::= "prepare_order" "(" <order_id> ")"
+
+<serve_order> ::= "serve_order" "(" <order_id> ")"
+
+<handle_payment> ::= "handle_payment" "(" <order_id> "," <payment_method> "," <amount> ")"
+
+<customer_name> ::= <string>
+
+<order_items> ::= <item> | <item> "," <order_items>
+
+<item> ::= <item_name> "," <quantity>
+
+<order_id> ::= <number>
+
+<payment_method> ::= "Cash" | "Card" | "MobilePayment"
+
+<amount> ::= <number> "." <number>
+
+<item_name> ::= <string>
+
+<quantity> ::= <number>
+
+<string> ::= <letter> | <letter> <string>
+
+<letter> ::= "a" | "b" | "c" | ... | "z" | "A" | "B" | ... | "Z"
+
+<number> ::= "0" | "1" | "2" | ... | "9"
