@@ -2,7 +2,7 @@
 
 <task_list> ::= <task> | <task> ";" <task_list>
 
-<task> ::= <take_order> | <prepare_order> | <serve_order> | <handle_payment>
+<task> ::= <take_order> | <prepare_order> | <serve_order> | <handle_payment> | <seat_customer>
 
 <take_order> ::= "take_order" "(" <customer_name> "," <order_items> ")"
 
@@ -11,6 +11,10 @@
 <serve_order> ::= "serve_order" "(" <order_id> ")"
 
 <handle_payment> ::= "handle_payment" "(" <order_id> "," <payment_method> "," <amount> ")"
+
+<seat_customer> ::= "seat_customer" "(" <customer_name> "," <seat> ")"
+
+<seat> ::= "Bar" | "Outdoor" | "DiningTable"
 
 <customer_name> ::= <string>
 
