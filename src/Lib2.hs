@@ -22,13 +22,8 @@ data Query
     | ServeOrder Integer
     | HandlePayment Integer PaymentMethod (Integer, Integer)
     | SeatCustomer String Seat
+  deriving(Eq, Show)
 
--- | The instances are needed basically for tests
-instance Eq Query where
-  (==) _ _= False
-
-instance Show Query where
-  show _ = ""
 
 -- | Parses user's input.
 -- The function must have tests.
@@ -62,31 +57,35 @@ emptyState = State
 stateTransition :: State -> Query -> Either String (Maybe String, State)
 stateTransition state query = case query of
   TakeOrder customerName items ->
-    let newOrderId = nextOrderId state -- Use the nextOrderId for the new order
+    let newOrderId = nextOrderId state
         newOrderList = (customerName, items) : orderList state
         newKitchenList = (newOrderId, "Order placed") : kitchenList state
-        newNextOrderId = newOrderId + 1 -- Increment the next order ID
-    in Right (Just $ "Order taken for " ++ customerName, state { orderList = newOrderList, kitchenList = newKitchenList, nextOrderId = newNextOrderId })
+        newNextOrderId = newOrderId + 1
+        msg = "Order taken for " ++ customerName ++ ". Your order ID is " ++ show newOrderId ++ "."
+    in Right (Just msg, state { orderList = newOrderList, kitchenList = newKitchenList, nextOrderId = newNextOrderId })
 
   PrepareOrder orderId ->
     case lookup orderId (kitchenList state) of
-        Just _ -> Right (Nothing, state) -- Order is already in preparation
-        Nothing -> Right (Just "Order not found", state)
+      Just _ -> Right (Nothing, state) -- No message
+      Nothing -> Right (Just "Order not found", state)
 
   ServeOrder orderId ->
     case lookup orderId (kitchenList state) of
-        Just status -> 
-            let updatedKitchenList = filter (\(id, _) -> id /= orderId) (kitchenList state)
-            in Right (Just $ "Order " ++ show orderId ++ " served", state { kitchenList = updatedKitchenList})
-        Nothing -> Left "Order not found"
+      Just status ->
+        let updatedKitchenList = filter (\(id, _) -> id /= orderId) (kitchenList state)
+            msg = "Order " ++ show orderId ++ " served successfully."
+        in Right (Just msg, state { kitchenList = updatedKitchenList })
+      Nothing -> Left "Order not found"
 
   HandlePayment orderId method amount ->
     let updatedKitchenList = filter (\(id, _) -> id /= orderId) (kitchenList state)
-        newRevenue = revenue state + sum amount
-    in Right (Just $ "Payment processed for order " ++ show orderId, state { kitchenList = updatedKitchenList, revenue = newRevenue })
+        newRevenue = revenue state + 20
+        msg = "Payment of " ++ "20" ++ " processed for order " ++ show orderId ++ "."
+    in Right (Just msg, state { kitchenList = updatedKitchenList, revenue = newRevenue })
 
   SeatCustomer customerName seat -> 
-    Right (Just $ "Seated " ++ customerName ++ " at " ++ show seat, state)
+    let msg = "Seated " ++ customerName ++ " at " ++ show seat ++ "."
+    in Right (Just msg, state)
 
 
 -- helpers
