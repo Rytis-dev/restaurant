@@ -39,7 +39,7 @@ unitTests = testGroup "Lib1 tests"
           order = Lib2.TakeOrder "John" [("banana", 4)]
           (Right (_, stateAfterOrder)) = Lib2.stateTransition initialState order
           prepareQuery = Lib2.PrepareOrder 1
-      in Lib2.stateTransition stateAfterOrder prepareQuery @?= Right (Nothing, stateAfterOrder),
+      in Lib2.stateTransition stateAfterOrder prepareQuery @?= Right (Just "Order 1 is prepared!", stateAfterOrder),
     testCase "Transition with ServeOrder" $
       let initialState = Lib2.emptyState
           order = Lib2.TakeOrder "John" [("banana", 4)]

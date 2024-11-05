@@ -22,13 +22,14 @@ data Query
     | ServeOrder Integer
     | HandlePayment Integer PaymentMethod (Integer, Integer)
     | SeatCustomer String Seat
+    | Debug 
   deriving(Eq, Show)
 
 
 -- | Parses user's input.
 -- The function must have tests.
 parseQuery :: String -> Either String Query
-parseQuery input = case or5 parseTakeOrder parsePrepareOrder parseServeOrder parseHandlePayment parseSeatCustomer input of
+parseQuery input = case or6 parseTakeOrder parsePrepareOrder parseServeOrder parseHandlePayment parseSeatCustomer parseDebug input of
   Right (query, _) -> Right query
   _ -> Left "Failed to parse query: Unknown command"
 
@@ -66,8 +67,10 @@ stateTransition state query = case query of
 
   PrepareOrder orderId ->
     case lookup orderId (kitchenList state) of
-      Just _ -> Right (Nothing, state) -- No message
-      Nothing -> Right (Just "Order not found", state)
+      Just status ->
+        let msg = "Order " ++ show orderId ++ " is prepared!"
+        in Right ( Just msg, state)
+      Nothing -> Left "Order not found"
 
   ServeOrder orderId ->
     case lookup orderId (kitchenList state) of
@@ -85,6 +88,10 @@ stateTransition state query = case query of
 
   SeatCustomer customerName seat -> 
     let msg = "Seated " ++ customerName ++ " at " ++ show seat ++ "."
+    in Right (Just msg, state)
+
+  Debug -> 
+    let msg = show state
     in Right (Just msg, state)
 
 
@@ -118,6 +125,22 @@ or5 a b c d e = \input ->
           Left e4 -> case e input of
             Right r5 -> Right r5
             Left e5 -> Left (e1 ++ "; " ++ e2 ++ "; " ++ e3 ++ "; " ++ e4 ++ "; " ++ e5)
+
+or6 :: Parser a -> Parser a -> Parser a -> Parser a -> Parser a -> Parser a -> Parser a
+or6 a b c d e f = \input ->
+  case a input of
+    Right r1 -> Right r1
+    Left e1 -> case b input of
+      Right r2 -> Right r2
+      Left e2 -> case c input of
+        Right r3 -> Right r3
+        Left e3 -> case d input of
+          Right r4 -> Right r4
+          Left e4 -> case e input of
+            Right r5 -> Right r5
+            Left e5 -> case f input of
+              Right r6 -> Right r6
+              Left e6 -> Left (e1 ++ "; " ++ e2 ++ "; " ++ e3 ++ "; " ++ e4 ++ "; " ++ e5 ++ "; " ++ e6)
 
 and2 :: (a -> b -> c) -> Parser a -> Parser b -> Parser c
 and2 f a b input =
@@ -323,3 +346,9 @@ parseTaskList = or2' (\a -> a:[]) id parseTask (and3 (\c _ d -> (c : d)) parseTa
 -- <restaurant_operation> ::= <task_list>
 parseRestaurantOperation :: Parser [Query]
 parseRestaurantOperation = parseTaskList
+
+parseDebug :: Parser Query
+parseDebug input = case parseString input of
+    Right ("Debug", rest) -> Right (Debug, rest)
+    Left err -> Left err
+    _ -> Left "Failed to parse Debug"
