@@ -351,4 +351,4 @@ parseDebug :: Parser Query
 parseDebug input = case parseString input of
     Right ("Debug", rest) -> Right (Debug, rest)
     Left err -> Left err
-    _ -> Left "Failed to parse Debug"
+    _ -> Left "Failed to parse "
