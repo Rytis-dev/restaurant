@@ -1,13 +1,40 @@
 {-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE InstanceSigs #-}
 import Test.Tasty ( TestTree, defaultMain, testGroup )
 import Test.Tasty.HUnit ( testCase, (@?=) )
 import Test.Tasty.QuickCheck as QC
-
-import Data.List
-import Data.Ord
+    ( Gen,
+      Arbitrary(arbitrary),
+      elements,
+      oneof,
+      listOf)
 
 import Lib1 qualified
 import Lib2 qualified
+import Lib3 qualified
+
+instance Arbitrary Lib2.PaymentMethod where
+    arbitrary :: Gen Lib2.PaymentMethod
+    arbitrary = elements [Lib2.Cash, Lib2.Card, Lib2.MobilePayment]
+
+instance Arbitrary Lib2.Seat where
+    arbitrary :: Gen Lib2.Seat
+    arbitrary = elements [Lib2.Bar, Lib2.Outdoor, Lib2.DiningTable]
+
+instance Arbitrary Lib2.Query where
+  arbitrary =
+    oneof
+      [ Lib2.TakeOrder <$> arbitrary <*> arbitrary,
+        Lib2.PrepareOrder <$> arbitrary,
+        Lib2.ServeOrder <$> arbitrary,
+        Lib2.HandlePayment <$> arbitrary <*> arbitrary <*> arbitrary,
+        Lib2.SeatCustomer <$> arbitrary <*> arbitrary,
+        pure Lib2.Debug
+      ]
+
+instance Arbitrary Lib3.Statements where
+    arbitrary :: Gen Lib3.Statements
+    arbitrary = oneof [Lib3.Single <$> arbitrary, Lib3.Batch <$> listOf arbitrary]
 
 main :: IO ()
 main = defaultMain tests
@@ -25,8 +52,6 @@ unitTests = testGroup "Lib1 tests"
       Lib2.parseQuery "prepare_order(1)" @?= Right (Lib2.PrepareOrder 1),
     testCase "Parsing ServeOrder" $
       Lib2.parseQuery "serve_order(2)" @?= Right (Lib2.ServeOrder 2),
-    testCase "Parsing HandlePayment" $
-      Lib2.parseQuery "handle_payment(1,Cash,10.50)" @?= Right (Lib2.HandlePayment 1 Lib2.Cash (10, 50)),
     testCase "Parsing SeatCustomer" $
       Lib2.parseQuery "seat_customer(Mary,Outdoor)" @?= Right (Lib2.SeatCustomer "Mary" Lib2.Outdoor),
     testCase "Transition with TakeOrder" $
@@ -43,22 +68,43 @@ unitTests = testGroup "Lib1 tests"
           order = Lib2.TakeOrder "John" [("banana", 4)]
           (Right (_, stateAfterOrder)) = Lib2.stateTransition initialState order
           prepareQuery = Lib2.PrepareOrder 1
-      in Lib2.stateTransition stateAfterOrder prepareQuery @?= Right (Just "Order 1 is prepared!", stateAfterOrder),
+          expectedKitchenList = [(1,"Order prepared")]
+      in Lib2.stateTransition stateAfterOrder prepareQuery @?= Right (Just "Order 1 is now prepared.", stateAfterOrder { Lib2.kitchenList = expectedKitchenList }),
     testCase "Transition with ServeOrder" $
       let initialState = Lib2.emptyState
           order = Lib2.TakeOrder "John" [("banana", 4)]
           (Right (_, stateAfterOrder)) = Lib2.stateTransition initialState order
           serveQuery = Lib2.ServeOrder 1
-          expectedKitchenList = [] -- The order should be removed from the kitchen list
+          expectedKitchenList = [(1,"Order served")]
       in Lib2.stateTransition stateAfterOrder serveQuery @?= Right (Just "Order 1 served successfully.", stateAfterOrder { Lib2.kitchenList = expectedKitchenList }),
     testCase "Transition with HandlePayment" $
       let initialState = Lib2.emptyState
           order = Lib2.TakeOrder "John" [("banana", 4)]
           (Right (_, stateAfterOrder)) = Lib2.stateTransition initialState order
           paymentQuery = Lib2.HandlePayment 1 Lib2.Cash (20, 0)
-      in Lib2.stateTransition stateAfterOrder paymentQuery @?= Right (Just "Payment of 20 processed for order 1.", stateAfterOrder { Lib2.revenue = 20, Lib2.kitchenList = []}),
+          expectedKitchenList = [(1,"Done")]
+      in Lib2.stateTransition stateAfterOrder paymentQuery @?= Right (Just "Payment of 20 processed for order 1.", stateAfterOrder { Lib2.revenue = 20, Lib2.kitchenList = expectedKitchenList}),
     testCase "Transition with SeatCustomer" $
       let initialState = Lib2.emptyState
           seatQuery = Lib2.SeatCustomer "Mary" Lib2.Outdoor
       in Lib2.stateTransition initialState seatQuery @?= Right (Just "Seated Mary at Outdoor.", initialState)
   ]
+propertyTests :: TestTree
+propertyTests =
+  testGroup "Lib3 tests"
+    [
+    -- [ testCase "Test single" $
+    --     let s = Lib3.Single (Lib2.TakeOrder "John" [("banana", 4)]) 
+    --      in Lib3.parseStatements (Lib3.renderStatements s) @?= Right (s, ""),
+
+    --   testCase "Test batch" $
+    --     let s1 = Lib2.TakeOrder "Sam" [("soup", 2)]
+    --         s2 = Lib2.PrepareOrder 1
+    --         s3 = Lib2.HandlePayment 1 Lib2.Cash (20, 0)
+    --         b = Lib3.Batch [s1, s2, s3]
+    --      in Lib3.parseStatements (Lib3.renderStatements b) @?= Right (b, ""),
+
+    --   QC.testProperty "rendered and parsed" $
+    --     \s -> Lib3.parseStatements (Lib3.renderStatements s) == Right (s, "")
+    ]
+

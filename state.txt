@@ -1,0 +1,6 @@
+BEGIN
+take_order(john,sa,5);
+take_order(john,sa,4);
+handle_payment(2,Cash,20.00);
+handle_payment(1,Cash,20.00);
+END

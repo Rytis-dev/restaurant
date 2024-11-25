@@ -1,0 +1,6 @@
+BEGIN
+take_order(Billie,soup,4);
+prepare_order(1);
+take_order(Tom,salad,4,fries,2);
+handle_payment(2,Cash,20.00);
+END
