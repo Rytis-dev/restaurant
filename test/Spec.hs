@@ -7,11 +7,12 @@ import Test.Tasty.QuickCheck as QC
       Arbitrary(arbitrary),
       elements,
       oneof,
-      listOf)
+      listOf, testProperty, listOf1, suchThat)
 
 import Lib1 qualified
 import Lib2 qualified
 import Lib3 qualified
+import Control.Concurrent (Chan)
 
 instance Arbitrary Lib2.PaymentMethod where
     arbitrary :: Gen Lib2.PaymentMethod
@@ -21,14 +22,29 @@ instance Arbitrary Lib2.Seat where
     arbitrary :: Gen Lib2.Seat
     arbitrary = elements [Lib2.Bar, Lib2.Outdoor, Lib2.DiningTable]
 
+onlyLetters :: Gen Char
+onlyLetters = elements ['a'..'z']
+
+positiveInt :: Gen Integer
+positiveInt = arbitrary `suchThat` (> 0) 
+
+goodItems :: Gen [(String, Integer)]
+goodItems = listOf1 $ (,) <$> listOf1 onlyLetters <*> positiveInt
+
+positiveTuple :: Gen (Integer, Integer)
+positiveTuple = do
+  wholePart <- positiveInt
+  fractionalPart <- positiveInt
+  return (wholePart, fractionalPart)
+
 instance Arbitrary Lib2.Query where
   arbitrary =
     oneof
-      [ Lib2.TakeOrder <$> arbitrary <*> arbitrary,
-        Lib2.PrepareOrder <$> arbitrary,
-        Lib2.ServeOrder <$> arbitrary,
-        Lib2.HandlePayment <$> arbitrary <*> arbitrary <*> arbitrary,
-        Lib2.SeatCustomer <$> arbitrary <*> arbitrary,
+      [ Lib2.TakeOrder <$> listOf1 onlyLetters <*> goodItems,
+        Lib2.PrepareOrder <$> positiveInt,
+        Lib2.ServeOrder <$> positiveInt,
+        Lib2.HandlePayment <$> positiveInt <*> arbitrary <*> positiveTuple,
+        Lib2.SeatCustomer <$> listOf1 onlyLetters <*> arbitrary,
         pure Lib2.Debug
       ]
 
@@ -92,19 +108,19 @@ unitTests = testGroup "Lib1 tests"
 propertyTests :: TestTree
 propertyTests =
   testGroup "Lib3 tests"
-    [
-    -- [ testCase "Test single" $
-    --     let s = Lib3.Single (Lib2.TakeOrder "John" [("banana", 4)]) 
-    --      in Lib3.parseStatements (Lib3.renderStatements s) @?= Right (s, ""),
 
-    --   testCase "Test batch" $
-    --     let s1 = Lib2.TakeOrder "Sam" [("soup", 2)]
-    --         s2 = Lib2.PrepareOrder 1
-    --         s3 = Lib2.HandlePayment 1 Lib2.Cash (20, 0)
-    --         b = Lib3.Batch [s1, s2, s3]
-    --      in Lib3.parseStatements (Lib3.renderStatements b) @?= Right (b, ""),
+    [ testCase "Test single" $
+        let s = Lib3.Single (Lib2.SeatCustomer "Mary" Lib2.Outdoor) 
+         in Lib3.parseStatements (Lib3.renderStatements s) @?= Right (s, ""),
 
-    --   QC.testProperty "rendered and parsed" $
-    --     \s -> Lib3.parseStatements (Lib3.renderStatements s) == Right (s, "")
+      testCase "Test batch" $
+        let s1 = Lib2.TakeOrder "Sam" [("soup", 2)]
+            s2 = Lib2.PrepareOrder 1
+            s3 = Lib2.ServeOrder 1
+            b = Lib3.Batch [s1, s2, s3]
+         in Lib3.parseStatements (Lib3.renderStatements b) @?= Right (b, ""),
+
+      QC.testProperty "rendered and parsed" $
+        \s -> Lib3.parseStatements (Lib3.renderStatements s) == Right (s, "")
     ]
 

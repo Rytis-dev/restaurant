@@ -182,15 +182,11 @@ parseString = P $ \input ->
 
 -- <quantity> ::= <number>
 parseQuantity :: Parser Integer
-parseQuantity = do
-  num <- parseNumber
-  return num
+parseQuantity = parseNumber
 
 -- <item_name> ::= <string>
 parseItemName :: Parser String
-parseItemName = do 
-  name <- parseString
-  return name
+parseItemName = parseString
 
 -- <amount> ::= <number> "." <number>
 parseAmount :: Parser (Integer, Integer)
@@ -198,7 +194,7 @@ parseAmount = do
   wholePart <- parseNumber
   _ <- parseChar '.'
   fractionalPart <- parseNumber
-  return (read(show wholePart ++ "." ++ show fractionalPart))
+  return (wholePart, fractionalPart)
 
 -- <payment_method> ::= "Cash" | "Card" | "MobilePayment"
 parsePaymentMethod :: Parser PaymentMethod
@@ -209,9 +205,7 @@ parsePaymentMethod =
 
 -- <order_id> ::= <number>
 parseOrderID :: Parser Integer
-parseOrderID = parseNumber--do 
-  -- num <- parseNumber
-  -- return(read(show num))
+parseOrderID = parseNumber
 
 -- <item> ::= <item_name> "," <quantity>
 parseItem :: Parser (String, Integer)
@@ -232,9 +226,7 @@ parseOrderItems = do
 
 -- <customer_name> ::= <string>
 parseCustomerName :: Parser String
-parseCustomerName = parseString--do 
-  --  name <- parseString
-  --  return(read(show name))
+parseCustomerName = parseString
 
 -- <seat> ::= "Bar" | "Outdoor" | "DiningTable"
 parseSeat :: Parser Seat

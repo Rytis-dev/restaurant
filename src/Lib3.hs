@@ -20,6 +20,7 @@ import Lib2 (Parser, parse, parseLiteral)
 import Control.Applicative (Alternative (many), (<|>))
 import System.Directory (doesFileExist)
 import Data.Maybe ( fromJust, isNothing )
+import Data.List (intercalate)
 
 -- | This function is started from main
 -- in a dedicated thread. It must be used to control
@@ -102,18 +103,28 @@ marshallState state = Batch queries
 
 renderQuery :: Lib2.Query -> String
 renderQuery (Lib2.TakeOrder name items) =
-  "take_order(" ++ name ++ "," ++ renderItems items ++ ")"
+  "take_order(" ++ name ++ renderItems items ++ ")"
 renderQuery (Lib2.PrepareOrder id ) =
   "prepare_order(" ++ show id ++ ")"
 renderQuery (Lib2.ServeOrder id) =
   "serve_order(" ++ show id ++ ")"
-renderQuery (Lib2.HandlePayment id method (whole, _)) =
-  "handle_payment(" ++ show id ++ "," ++ show method ++ "," ++ show whole ++ ".00)"
+renderQuery (Lib2.HandlePayment id method num) =
+  "handle_payment(" ++ show id ++ "," ++ show method ++ "," ++ renderTuple num ++ ")"
+renderQuery (Lib2.SeatCustomer name seat) =
+  "seat_customer(" ++ name ++ "," ++ show seat ++ ")"
 renderQuery Lib2.Debug = "Debug"
+renderQuery (Lib2.RestaurantOperation queries) =
+  "wine_factory(" ++ renderQueries queries ++ ")"
 
 renderItems :: [(String, Integer)] -> String
 renderItems [] = "" 
-renderItems items = concatMap (\(item, qty) -> item ++ "," ++ show qty) items
+renderItems items = concatMap (\(item, qty) -> "," ++ item ++ "," ++ show qty) items
+
+renderTuple :: (Integer, Integer) -> String
+renderTuple (whole, ptr) = show whole ++ "." ++ show ptr
+
+renderQueries :: [Lib2.Query] -> String
+renderQueries = intercalate ", " . map renderQuery
 
 -- | Renders Statements into a String which
 -- can be parsed back into Statements by parseStatements
@@ -121,11 +132,10 @@ renderItems items = concatMap (\(item, qty) -> item ++ "," ++ show qty) items
 -- as persist program's state in a file. 
 -- Must have a property test
 -- for all s: parseStatements (renderStatements s) == Right(s, "")
--- renderStatements :: Statements -> String
--- renderStatements = show
 
 renderStatements :: Statements -> String
-renderStatements = show
+renderStatements (Single q) = renderQuery q
+renderStatements (Batch qs) = "BEGIN\n" ++ concatMap ((++ ";\n") . renderQuery) qs ++ "END\n"
 
 -- | Updates a state according to a command.
 -- Performs file IO via ioChan if needed.
@@ -199,3 +209,4 @@ statements =
       return $ Batch q
   )
     <|> (Single <$> Lib2.parseTask)
+

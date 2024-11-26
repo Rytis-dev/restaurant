@@ -1,6 +1,8 @@
 BEGIN
-take_order(john,sa,5);
-take_order(john,sa,4);
-handle_payment(2,Cash,20.00);
-handle_payment(1,Cash,20.00);
+take_order(sam,skd,5,shdi,5);
+take_order(Billie,soup,4);
+take_order(Tom,salad,4,fries,2);
+prepare_order(3);
+handle_payment(2,Cash,20.0);
+handle_payment(1,Cash,20.0);
 END
