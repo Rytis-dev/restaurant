@@ -55,6 +55,7 @@ library
     , deepseq
     , directory
     , free
+    , mtl
     , random
     , stm
     , strict
@@ -75,7 +76,9 @@ executable fp2024-four-client
     , bytestring
     , directory
     , fp2024
+    , free
     , lens
+    , mtl
     , repline
     , string-conversions
     , wreq
@@ -94,8 +97,10 @@ executable fp2024-four-server
       base >=4.7 && <5
     , directory
     , fp2024
+    , mtl
     , repline
     , scotty
+    , stm
     , string-conversions
   default-language: Haskell2010
 

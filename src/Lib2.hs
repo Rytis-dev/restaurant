@@ -8,17 +8,29 @@ module Lib2
       PaymentMethod(..),
       Seat(..),
       parseQuery,
-      State(..),
+      StateD(..),
       emptyState,
       stateTransition,
       parseLiteral,
       parseTask,
+      parseWord,
+      parse
     ) where
 
 import qualified Data.Char as C
-import Control.Applicative (Alternative (empty), optional, (<|>))
+import Control.Monad.Trans.Except ( runExceptT, ExceptT )
+import Control.Monad.Trans.State
+import Control.Monad.Except (throwError)
+import Control.Monad.Trans.Class (MonadTrans (..), lift)
+import Control.Applicative (optional, Alternative (..))
 
-newtype Parser a = P {parse :: String -> Either String (a, String)}
+
+--newtype Parser a = P {parse :: String -> Either String (a, String)}
+
+type Parser a = ExceptT String (State String) a
+
+parse :: Parser a -> String -> (Either String a, String)
+parse parser = runState (runExceptT parser)
 
 data Query
     = TakeOrder String [(String, Integer)]
@@ -33,15 +45,15 @@ data Query
 -- | Parses user's input.
 -- The function must have tests.
 parseQuery :: String -> Either String Query
-parseQuery input = case parse parseTaskList input of
-  --Right (query, _) -> Right query
-  Right (qs, r) ->
+parseQuery s =
+  case parse parseTaskList s of
+    (Left e, _) -> Left e
+    (Right qs, r) ->
       if null r
         then case qs of
           [q] -> Right q
           _ -> Right (RestaurantOperation qs)
         else Left ("Unrecognized characters: " ++ r)
-  _ -> Left "Failed to parse query: Unknown command"
   
 data PaymentMethod = Cash | Card | MobilePayment
    deriving (Eq, Show)
@@ -49,7 +61,7 @@ data PaymentMethod = Cash | Card | MobilePayment
 data Seat = Bar | Outdoor | DiningTable
   deriving (Eq, Show)
 
-data State = State
+data StateD = StateD
   { orderList :: [(String, [(String, Integer)])], -- customer name and their items
     kitchenList :: [(Integer, String)], -- order ID and status
     revenue :: Integer, -- total revenue
@@ -57,43 +69,15 @@ data State = State
   }
   deriving (Eq, Show)
 
-instance Functor Parser where
-  fmap :: (a -> b) -> Parser a -> Parser b
-  fmap f p = do
-    a <- p
-    return $ f a
-
-instance Applicative Parser where
-  pure :: a -> Parser a
-  pure x = P $ \str -> Right (x, str)
-  (<*>) :: Parser (a -> b) -> Parser a -> Parser b
-  pf <*> pa = do
-    f <- pf
-    f <$> pa
-
-instance Alternative Parser where
-  empty :: Parser a
-  empty = P $ \_ -> Left "Failed to parse"
-  (<|>) :: Parser a -> Parser a -> Parser a
-  (<|>) p1 p2 = P $ \str -> case parse p1 str of
-    Right (v, r) -> Right (v, r)
-    Left _ -> parse p2 str
-
-instance Monad Parser where
-  (>>=) :: Parser a -> (a -> Parser b) -> Parser b
-  (>>=) pa f = P $ \str -> case parse pa str of
-    Left e -> Left e
-    Right (a, r) -> parse (f a) r
-
-emptyState :: State
-emptyState = State
+emptyState :: StateD
+emptyState = StateD
   { orderList = [],
     kitchenList = [],
     revenue = 0,
     nextOrderId = 1
   }
 
-stateTransition :: State -> Query -> Either String (Maybe String, State)
+stateTransition :: StateD -> Query -> Either String (Maybe String, StateD)
 stateTransition state query = case query of
   TakeOrder customerName items ->
     let newOrderId = nextOrderId state
@@ -127,58 +111,31 @@ stateTransition state query = case query of
             msg = "Payment of " ++ "20" ++ " processed for order " ++ show orderId ++ "."
         in Right (Just msg, state { kitchenList = updatedKitchenList, revenue = newRevenue })
 
-  SeatCustomer customerName seat -> 
-    let msg = "Seated " ++ customerName ++ " at " ++ show seat ++ "."
-    in Right (Just msg, state)
+  -- SeatCustomer customerName seat -> 
+  --   let msg = "Seated " ++ customerName ++ " at " ++ show seat ++ "."
+  --   in Right (Just msg, state)
 
   Debug -> 
     let msg = show state
     in Right (Just msg, state)
 
-
-skipSpaces :: String -> String
-skipSpaces = dropWhile (== ' ')
-
-parseChar :: Char -> Parser Char
-parseChar c = P $ \input ->
-    case input of
-        [] ->  Left ("Cannot find " ++ [c] ++ " in an empty input")
-        s@(h:t) -> if c == h then Right (c, t) else Left (c : " is not found in " ++ s)
-
 parseWord :: String -> Parser String
-parseWord [] = P $ \input -> Right ([], input)
-parseWord (w:ws) = P $ \input ->
-    case parse (parseChar w) input of
-        Right (_, rest) -> 
-            case parse (parseWord ws) rest of 
-                Right (matched, finalRest) -> Right (w : matched, finalRest)
-                Left err -> Left err
-        Left _ -> Left ("Input does not match: expected '" ++ (w:ws) ++ "', but found '" ++ input ++ "'")
+parseWord = parseLiteral
 
--- <number> ::= "0" | "1" | "2" | ... | "9" 
 parseNumber :: Parser Integer
-parseNumber = P $ \input ->
-  let (digits, rest) = span C.isDigit (skipSpaces input)
-   in if null digits
-        then Left "Not a number"
-        else Right (read digits, rest)
-
--- <letter> ::= "a" | "b" | "c" | ... | "z" | "A" | "B" | ... | "Z"
-parseLetter :: Parser Char
-parseLetter = P $ \input ->
-    case input of
-      [] -> Left "Cannot find any letter in an empty input"
-      s@(h:t) -> if C.isLetter h then Right (h, t) else Left (s ++ " does not start with a letter")
+parseNumber = do
+  digits <- some (sat C.isDigit)
+  return $ read digits
 
 -- <string> ::= <letter> | <letter> <string>
 parseString :: Parser String
-parseString = P $ \input ->
-    case parse parseLetter input of
-        Right (c, rest) ->
-            case parse parseString rest of
-                Right (cs, remaining) -> Right (c:cs, remaining)
-                Left _ -> Right ([c], rest)  -- Stop after first letter if no more letters can be parsed
-        Left err -> Left err 
+parseString = do
+  input <- lift get
+  case input of
+    [] -> throwError "Input is empty. No string found."
+    _ -> do
+      letters <- some (sat C.isLetter)
+      return letters
 
 -- <quantity> ::= <number>
 parseQuantity :: Parser Integer
@@ -314,18 +271,24 @@ parseDebug = do
 
  --new for lib3
 sat :: (Char -> Bool) -> Parser Char
-sat p = P $ \case
-  [] -> Left "Empty String"
-  s@(x : xs) -> if p x then Right (x, xs) else Left $ "Could not recognize: " ++ s
+sat p = do
+  input <- lift get
+  case input of
+    [] -> throwError "Empty String"
+    (x : xs) ->
+      if p x
+        then lift (put xs) >> return x
+        else throwError $ "Could not recognize: " ++ [x]
 
 char :: Char -> Parser Char
 char c = sat (== c)
 
-parseChar' :: Char -> Parser Char
-parseChar' = char
+parseChar :: Char -> Parser Char
+parseChar = char
 
 parseLiteral :: String -> Parser String
 parseLiteral [] = return []
-parseLiteral (x : xs) = do
-  _ <- parseChar' x
+parseLiteral (x:xs) = do
+  _ <- parseChar x
   parseLiteral xs
+  return (x:xs)

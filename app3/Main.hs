@@ -21,7 +21,7 @@ import System.Console.Repline
   )
 import Control.Concurrent (forkIO)
 
-type Repl a = HaskelineT (StateT (TVar Lib2.State, Chan Lib3.StorageOp) IO) a
+type Repl a = HaskelineT (StateT (TVar Lib2.StateD, Chan Lib3.StorageOp) IO) a
 
 final :: Repl ExitDecision
 final = do
